@@ -20,15 +20,12 @@ export default function Home() {
       </main>
 
       {/* Simple but Premium Footer */}
-      <footer className="border-t border-slate-800/60  backdrop-blur-sm bg-slate-950/80 relative z-10">
-        <div className="container mx-auto px-6 py-2 pb-8">
+      <footer className="border-t border-slate-800/60 backdrop-blur-sm bg-slate-950/80 relative z-10 shadow-2xl mt-12">
+        <div className="container mx-auto px-6 py-2 flex flex-col items-center justify-center min-h-24">
           {/* Bottom Footer */}
-          <div className="pt-6 text-center">
-            <p className="text-slate-400 text-sm mb-2">
-              © 2025 AI Age Detector • Tugas Kuliah Computer Vision
-            </p>
-            <p className="text-slate-500 text-xs">
-              Dibuat dengan ❤️ menggunakan Next.js & Python
+          <div className="pt-4 text-center w-full">
+            <p className="text-slate-400 text-sm mb-2 tracking-wide font-medium">
+              © 2025 AI Age Detector • KidiXDev & AlvanCP
             </p>
           </div>
         </div>
