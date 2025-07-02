@@ -267,7 +267,7 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
         <div className="relative inline-block">
           <h1 className="relative text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white mb-3 sm:mb-4 tracking-tight text-center leading-tight">
             <span className="bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent drop-shadow-lg">
-              🎯 AI Age Detector
+              AI Age Detector
             </span>
           </h1>
           <div className="absolute inset-0 bg-gradient-to-r from-slate-700/40 via-slate-600/30 to-slate-700/40 rounded-2xl blur-lg opacity-40 -z-10 scale-110"></div>
@@ -314,9 +314,7 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
 
             <div className="space-y-4 sm:space-y-6">
               <div
-                className={`text-5xl sm:text-6xl transition-transform duration-300 ${
-                  isDragging ? "scale-110" : "hover:scale-110"
-                }`}
+                className={`text-5xl sm:text-6xl transition-transform duration-300`}
               >
                 📷
               </div>
@@ -425,16 +423,15 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
                   )}
                 </div>
               </div>
-
-              {/* Action Buttons */}
-              <div className="flex lg:flex-col gap-3 justify-center">
-                <button
-                  onClick={resetDetector}
-                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors text-sm"
-                >
-                  🔄 Reset
-                </button>
-              </div>
+            </div>
+            {/* Reset Button Below Image */}
+            <div className="flex justify-center mt-6">
+              <button
+                onClick={resetDetector}
+                className="px-5 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors text-base font-medium shadow-md"
+              >
+                🔄 Reset
+              </button>
             </div>
           </div>
 
