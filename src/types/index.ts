@@ -7,7 +7,7 @@ export interface AgeDetectionResult {
     age_min: number;
     age_max: number;
     confidence: number;
-    raw_prediction: number;
+    raw_prediction?: number;
     gender?: string;
     message: string;
     method: string;
@@ -65,8 +65,10 @@ export interface AppConfig {
 }
 
 // Utility Types
-export type LoadingState = 'idle' | 'loading' | 'success' | 'error';
-export type FileValidationResult = { valid: true } | { valid: false; error: string };
+export type LoadingState = "idle" | "loading" | "success" | "error";
+export type FileValidationResult =
+  | { valid: true }
+  | { valid: false; error: string };
 
 // Events
 export interface ImageUploadEvent {
@@ -75,7 +77,7 @@ export interface ImageUploadEvent {
 }
 
 export interface ProcessingEvent {
-  stage: 'upload' | 'processing' | 'complete' | 'error';
+  stage: "upload" | "processing" | "complete" | "error";
   progress?: number;
   message?: string;
 }

@@ -97,6 +97,8 @@ export async function POST(request: NextRequest) {
       success: true,
       age: result.age || result.predicted_age,
       confidence: result.confidence || 0.8,
+      raw_prediction:
+        result.raw_prediction || result.age || result.predicted_age,
       gender: result.gender || null,
       message: result.message || "Age detection completed",
       timestamp: new Date().toISOString(),

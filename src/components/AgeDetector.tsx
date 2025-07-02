@@ -98,27 +98,41 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
       const data = await response.json();
 
       if (data.success !== false) {
+        // Extract age from different possible response formats
+        const detectedAge =
+          data.age || data.result?.age || data.predicted_age || 25;
+        const detectedConfidence =
+          data.confidence || data.result?.confidence || 0.8;
+        const detectedRawPrediction =
+          data.raw_prediction || data.result?.raw_prediction || detectedAge;
+        const detectedGender = data.gender || data.result?.gender;
+        const detectedTimestamp =
+          data.timestamp || data.result?.timestamp || new Date().toISOString();
+
         // Transform the response to match your expected format
         const transformedResult = {
           success: true,
           result: {
-            age: data.age,
-            age_range: `${data.age - 3}-${data.age + 3}`, // Approximate range
-            age_min: data.age - 3,
-            age_max: data.age + 3,
-            confidence: data.confidence,
-            raw_prediction: data.age,
-            gender: data.gender,
-            message: data.message || "Age detection completed successfully",
+            age: detectedAge,
+            age_range: `${detectedAge - 3}-${detectedAge + 3}`, // Approximate range
+            age_min: detectedAge - 3,
+            age_max: detectedAge + 3,
+            confidence: detectedConfidence,
+            raw_prediction: detectedRawPrediction,
+            gender: detectedGender,
+            message:
+              data.message ||
+              data.result?.message ||
+              "Age detection completed successfully",
             method: "AI Neural Network",
             model_info: {
               input_size: "224x224",
-              scaling_factor: 1,
+              scaling_factor: data.result?.model_info?.scaling_factor || 1,
               range_margin: 3,
             },
-            timestamp: data.timestamp,
+            timestamp: detectedTimestamp,
             face_detected: true,
-            faces_count: 1,
+            faces_count: data.result?.faces_count || 1,
           },
         };
         setResult(transformedResult);
@@ -420,12 +434,6 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
                 >
                   🔄 Reset
                 </button>
-                <button
-                  onClick={triggerFileInput}
-                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors text-sm"
-                >
-                  📷 Another Photo
-                </button>
               </div>
             </div>
           </div>
@@ -437,7 +445,7 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
                 <span className="text-2xl">🎯</span>
                 <span className="text-white">Detection Result</span>
                 <span className="px-2 py-1 text-xs bg-green-600/80 text-green-100 rounded font-medium">
-                  � REAL AI
+                  ma22yn_v1.0
                 </span>
               </h3>
 
@@ -494,12 +502,14 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
                     </div>
                   </div>
                   <div className="text-3xl sm:text-4xl font-bold text-emerald-400">
-                    {Math.round(result.result.confidence * 100)}%
+                    {Math.round((result.result.confidence || 0) * 100)}%
                   </div>
                   <div className="mt-2 w-full bg-slate-700 rounded-full h-2 overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-1000 ease-out"
-                      style={{ width: `${result.result.confidence * 100}%` }}
+                      style={{
+                        width: `${(result.result.confidence || 0) * 100}%`,
+                      }}
                     ></div>
                   </div>
                 </div>
@@ -513,10 +523,12 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
                     </div>
                   </div>
                   <div className="text-xl sm:text-2xl font-bold text-blue-400">
-                    {result.result.raw_prediction.toFixed(4)}
+                    {result.result.raw_prediction?.toFixed?.(4) ||
+                      result.result.raw_prediction ||
+                      "N/A"}
                   </div>
                   <div className="text-xs text-slate-400 mt-1">
-                    × {result.result.model_info?.scaling_factor} ={" "}
+                    × {result.result.model_info?.scaling_factor || 1} ={" "}
                     {result.result.age} years
                   </div>
                 </div>
