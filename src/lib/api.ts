@@ -7,7 +7,7 @@ const API_CONFIG = {
   LOCAL_NEXT_API: "http://localhost:3000/api",
 
   // Production URLs (update with your actual domains)
-  PRODUCTION_API: "https://your-api-domain.com",
+  PRODUCTION_API: "http://localhost:6969",
 
   // Endpoints
   ENDPOINTS: {
