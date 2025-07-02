@@ -3,7 +3,6 @@ import AgeDetector from "@/components/AgeDetector";
 export default function Home() {
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-950 via-gray-900 to-slate-900 relative overflow-hidden">
-      {/* Subtle animated background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-gradient-to-r from-slate-800/15 to-gray-700/15 rounded-full mix-blend-overlay filter blur-3xl animate-pulse"></div>
         <div
@@ -19,7 +18,7 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Simple but Premium Footer */}
+      {/* Footer */}
       <footer className="border-t border-slate-800/60 backdrop-blur-sm bg-slate-950/80 relative z-10 shadow-2xl mt-12">
         <div className="container mx-auto px-6 py-2 flex flex-col items-center justify-center min-h-24">
           {/* Bottom Footer */}

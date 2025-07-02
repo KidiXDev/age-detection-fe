@@ -13,14 +13,28 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Age Detector | Deteksi Umur dengan Kecerdasan Buatan",
-  description: "Aplikasi web untuk mendeteksi umur dari foto menggunakan teknologi AI dan machine learning. Upload foto dan dapatkan prediksi umur secara akurat.",
-  keywords: ["age detection", "AI", "machine learning", "computer vision", "deteksi umur"],
-  authors: [{ name: "Age Detector Team" }],
+  title: "AI Age Detector | Detect Age with Artificial Intelligence",
+  description:
+    "A web application to detect age from photos using AI and machine learning technology. Upload a photo and get an age prediction.",
+  keywords: [
+    "age detection",
+    "AI",
+    "machine learning",
+    "computer vision",
+    "age estimation",
+    "photo analysis",
+    "artificial intelligence",
+    "image processing",
+    "face recognition",
+    "deep learning",
+  ],
+  authors: [{ name: "KidiXDev & AlvanCP" }],
   openGraph: {
     title: "AI Age Detector",
-    description: "Deteksi umur dari foto menggunakan AI",
+    description: "Detect age from photos using AI",
     type: "website",
+    url: "https://age-detection.kdx.web.id",
+    siteName: "AI Age Detector",
   },
 };
 

@@ -1,4 +1,3 @@
-// API Response Types - Updated for Mayan Akurat API
 export interface AgeDetectionResult {
   success: boolean;
   result?: {
@@ -11,17 +10,19 @@ export interface AgeDetectionResult {
     gender?: string;
     message: string;
     method: string;
-    model_info: {
-      input_size: string;
-      scaling_factor: number;
-      range_margin: number;
-    };
+    model_info: ModelInfo;
     timestamp: string;
     face_detected: boolean;
     faces_count: number;
   };
   error?: string;
   message?: string;
+}
+
+interface ModelInfo {
+  input_size: string;
+  scaling_factor: number;
+  range_margin: number;
 }
 
 export interface ApiError {
@@ -36,7 +37,6 @@ export interface ApiResponse<T> {
   success: boolean;
 }
 
-// Component Props Types
 export interface ImageUploadProps {
   onImageSelect: (file: File) => void;
   onImageRemove: () => void;
@@ -80,4 +80,33 @@ export interface ProcessingEvent {
   stage: "upload" | "processing" | "complete" | "error";
   progress?: number;
   message?: string;
+}
+
+// API Response Types for better response management
+export interface RawApiResponse {
+  success?: boolean;
+  age?: number;
+  predicted_age?: number;
+  confidence?: number;
+  raw_prediction?: number;
+  gender?: string;
+  message?: string;
+  timestamp?: string;
+  error?: string;
+  result?: {
+    age?: number;
+    confidence?: number;
+    raw_prediction?: number;
+    gender?: string;
+    message?: string;
+    timestamp?: string;
+    model_info?: {
+      scaling_factor?: number;
+    };
+    faces_count?: number;
+  };
+}
+
+export interface ResponseTransformer {
+  transformApiResponse(rawResponse: RawApiResponse): AgeDetectionResult;
 }
