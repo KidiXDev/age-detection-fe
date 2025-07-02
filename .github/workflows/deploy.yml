@@ -14,12 +14,13 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Production Deployment
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
+          protocol: tcp6
           script: |
             cd /root/age-detection-fe
             git pull origin main
