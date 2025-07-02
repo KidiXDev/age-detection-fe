@@ -6,6 +6,7 @@ import {
   AgeDetectionResult,
   LoadingState,
   FileValidationResult,
+  RawApiResponse,
 } from "@/types";
 import LoadingSpinner from "./LoadingSpinner";
 
@@ -47,6 +48,98 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
     return { valid: true };
   }, []);
 
+  // Response transformer utility
+  const transformApiResponse = useCallback(
+    (rawResponse: RawApiResponse): AgeDetectionResult => {
+      // Extract age from different possible response formats
+      const detectedAge =
+        rawResponse.age ||
+        rawResponse.result?.age ||
+        rawResponse.predicted_age ||
+        25;
+      const detectedConfidence =
+        rawResponse.confidence || rawResponse.result?.confidence || 0.8;
+      const detectedRawPrediction =
+        rawResponse.raw_prediction ||
+        rawResponse.result?.raw_prediction ||
+        detectedAge;
+      const detectedGender = rawResponse.gender || rawResponse.result?.gender;
+      const detectedTimestamp =
+        rawResponse.timestamp ||
+        rawResponse.result?.timestamp ||
+        new Date().toISOString();
+
+      return {
+        success: true,
+        result: {
+          age: detectedAge,
+          age_range: `${detectedAge - 3}-${detectedAge + 3}`,
+          age_min: detectedAge - 3,
+          age_max: detectedAge + 3,
+          confidence: detectedConfidence,
+          raw_prediction: detectedRawPrediction,
+          gender: detectedGender,
+          message:
+            rawResponse.message ||
+            rawResponse.result?.message ||
+            "Age detection completed successfully",
+          method: "AI Neural Network",
+          model_info: {
+            input_size: "224x224",
+            scaling_factor: rawResponse.result?.model_info?.scaling_factor || 1,
+            range_margin: 3,
+          },
+          timestamp: detectedTimestamp,
+          face_detected: true,
+          faces_count: rawResponse.result?.faces_count || 1,
+        },
+      };
+    },
+    []
+  );
+
+  // Detect age function
+  const detectAge = useCallback(
+    async (file: File) => {
+      setLoadingState("loading");
+      setError(null);
+
+      try {
+        const formData = new FormData();
+        formData.append("image", file);
+
+        // Use Next.js API route instead of direct Python API call
+        const response = await fetch("/api/detect-age", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const rawData: RawApiResponse = await response.json();
+
+        if (rawData.success !== false) {
+          const transformedResult = transformApiResponse(rawData);
+          setResult(transformedResult);
+          setLoadingState("success");
+        } else {
+          throw new Error(rawData.error || "Failed to detect age");
+        }
+      } catch (err) {
+        console.error("Error detecting age:", err);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "An error occurred while detecting age"
+        );
+        setLoadingState("error");
+      }
+    },
+    [transformApiResponse]
+  );
+
   // Handle file selection
   const handleFileSelect = useCallback(
     async (file: File) => {
@@ -73,83 +166,8 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
       // Detect age
       await detectAge(file);
     },
-    [validateFile]
+    [validateFile, detectAge]
   );
-
-  // Detect age function
-  const detectAge = async (file: File) => {
-    setLoadingState("loading");
-    setError(null);
-
-    try {
-      const formData = new FormData();
-      formData.append("image", file);
-
-      // Use Next.js API route instead of direct Python API call
-      const response = await fetch("/api/detect-age", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data.success !== false) {
-        // Extract age from different possible response formats
-        const detectedAge =
-          data.age || data.result?.age || data.predicted_age || 25;
-        const detectedConfidence =
-          data.confidence || data.result?.confidence || 0.8;
-        const detectedRawPrediction =
-          data.raw_prediction || data.result?.raw_prediction || detectedAge;
-        const detectedGender = data.gender || data.result?.gender;
-        const detectedTimestamp =
-          data.timestamp || data.result?.timestamp || new Date().toISOString();
-
-        // Transform the response to match your expected format
-        const transformedResult = {
-          success: true,
-          result: {
-            age: detectedAge,
-            age_range: `${detectedAge - 3}-${detectedAge + 3}`, // Approximate range
-            age_min: detectedAge - 3,
-            age_max: detectedAge + 3,
-            confidence: detectedConfidence,
-            raw_prediction: detectedRawPrediction,
-            gender: detectedGender,
-            message:
-              data.message ||
-              data.result?.message ||
-              "Age detection completed successfully",
-            method: "AI Neural Network",
-            model_info: {
-              input_size: "224x224",
-              scaling_factor: data.result?.model_info?.scaling_factor || 1,
-              range_margin: 3,
-            },
-            timestamp: detectedTimestamp,
-            face_detected: true,
-            faces_count: data.result?.faces_count || 1,
-          },
-        };
-        setResult(transformedResult);
-        setLoadingState("success");
-      } else {
-        throw new Error(data.error || "Failed to detect age");
-      }
-    } catch (err) {
-      console.error("Error detecting age:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "An error occurred while detecting age"
-      );
-      setLoadingState("error");
-    }
-  };
 
   // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
@@ -167,7 +185,6 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Only set isDragging to false if we're leaving the drop zone entirely
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const x = e.clientX;
     const y = e.clientY;
@@ -333,14 +350,14 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
                 </p>
                 <button
                   type="button"
-                  className="mt-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors text-sm"
+                  className="mt-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors text-sm cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation();
                     startCamera();
                   }}
                   disabled={loadingState === "loading"}
                 >
-                  📸 Use Camera
+                  Use Camera
                 </button>
                 <div className="flex flex-wrap justify-center gap-2 text-xs sm:text-sm mt-4">
                   <span className="bg-slate-800 text-slate-300 px-3 py-1 rounded border border-slate-700">
@@ -428,7 +445,7 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
             <div className="flex justify-center mt-6">
               <button
                 onClick={resetDetector}
-                className="px-5 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors text-base font-medium shadow-md"
+                className="px-5 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors text-base font-medium shadow-md cursor-pointer"
               >
                 🔄 Reset
               </button>
@@ -455,93 +472,234 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
                       ✅ {result.result.method}
                     </p>
                     <p className="text-green-300">
-                      Model: Highly Accurate • Input:{" "}
-                      {result.result.model_info?.input_size} • Faces detected:{" "}
-                      {result.result.faces_count}
+                      Input: {result.result.model_info?.input_size} • Faces
+                      detected: {result.result.faces_count}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                {/* Age Range */}
-                <div className="bg-slate-800/80 backdrop-blur-sm rounded-lg p-4 sm:p-6 border border-slate-700/50 sm:col-span-2">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-2xl">👤</span>
-                    <div className="text-sm font-medium text-slate-400">
-                      Predicted Age
-                    </div>
-                  </div>
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                    <div className="text-3xl sm:text-4xl font-bold text-white">
-                      {result.result.age}
-                      <span className="text-lg sm:text-xl ml-1 text-slate-400">
-                        years
-                      </span>
-                    </div>
-                    <div className="text-slate-300">
-                      <div className="text-sm font-medium text-slate-400 mb-1">
-                        Prediction Range:
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                {/* Enhanced Age Display - Mobile Responsive */}
+                <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-sm rounded-xl p-4 sm:p-6 lg:p-8 border border-slate-700/50 lg:col-span-2 relative overflow-hidden">
+                  {/* Background decoration */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5"></div>
+                  <div className="absolute top-0 right-0 w-20 h-20 sm:w-32 sm:h-32 bg-gradient-to-bl from-white/5 to-transparent rounded-full blur-2xl"></div>
+
+                  <div className="relative z-10">
+                    {/* Header - Mobile Optimized */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-blue-500/20 border border-blue-400/30 flex-shrink-0">
+                          <span className="text-xl sm:text-2xl">👤</span>
+                        </div>
+                        <div>
+                          <div className="text-base sm:text-lg font-semibold text-white">
+                            Predicted Age
+                          </div>
+                          <div className="text-xs sm:text-sm text-slate-400">
+                            AI Neural Network Analysis
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-lg font-semibold">
-                        {result.result.age_range}
+                    </div>
+
+                    {/* Main Content - Responsive Layout */}
+                    <div className="flex flex-col space-y-6">
+                      {/* Age Display - Centered on Mobile */}
+                      <div className="text-center sm:text-left">
+                        <div className="relative inline-block">
+                          <div className="text-5xl sm:text-6xl lg:text-7xl font-black text-transparent bg-gradient-to-br from-white via-blue-200 to-blue-400 bg-clip-text leading-none">
+                            {result.result.age}
+                          </div>
+                          <div className="text-lg sm:text-xl lg:text-2xl font-medium text-slate-400 mt-1">
+                            years old
+                          </div>
+                          {/* Floating accent */}
+                          <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 w-3 h-3 sm:w-4 sm:h-4 bg-blue-400 rounded-full animate-pulse"></div>
+                        </div>
+                      </div>
+
+                      {/* Age Range and Details - Full Width on Mobile */}
+                      <div className="space-y-4">
+                        <div className="bg-slate-800/60 rounded-lg p-3 sm:p-4 border border-slate-700/50">
+                          <div className="text-xs sm:text-sm font-medium text-slate-400 mb-2">
+                            Age Range Estimate
+                          </div>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                            <div className="text-xl sm:text-2xl font-bold text-slate-200">
+                              {result.result.age_range}
+                            </div>
+                            <div className="text-xs sm:text-sm text-slate-400">
+                              ({result.result.age_min} - {result.result.age_max}{" "}
+                              years)
+                            </div>
+                          </div>
+                          <div className="mt-3 flex items-center gap-2">
+                            <div className="flex-1 bg-slate-700 rounded-full h-2 overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-1000 ease-out"
+                                style={{ width: "100%" }}
+                              ></div>
+                            </div>
+                            <span className="text-xs text-slate-400 whitespace-nowrap">
+                              ±{result.result.model_info?.range_margin} years
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Min/Max Ages - Responsive Grid */}
+                        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                          <div className="bg-slate-800/40 rounded-lg p-2 sm:p-3 text-center border border-slate-700/30">
+                            <div className="text-base sm:text-lg font-bold text-emerald-400">
+                              {result.result.age_min}
+                            </div>
+                            <div className="text-xs text-slate-400">
+                              Min Age
+                            </div>
+                          </div>
+                          <div className="bg-slate-800/40 rounded-lg p-2 sm:p-3 text-center border border-slate-700/30">
+                            <div className="text-base sm:text-lg font-bold text-emerald-400">
+                              {result.result.age_max}
+                            </div>
+                            <div className="text-xs text-slate-400">
+                              Max Age
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Confidence */}
-                <div className="bg-slate-800/80 backdrop-blur-sm rounded-lg p-4 sm:p-6 border border-slate-700/50">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-2xl">📊</span>
-                    <div className="text-sm font-medium text-slate-400">
-                      Confidence
+                {/* Enhanced Confidence - Mobile Responsive */}
+                <div className="bg-gradient-to-br from-emerald-800/30 to-emerald-900/30 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-emerald-600/30 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent"></div>
+
+                  <div className="relative z-10">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="p-2 rounded-lg bg-emerald-500/20 border border-emerald-400/30 flex-shrink-0">
+                          <span className="text-lg sm:text-2xl">📊</span>
+                        </div>
+                        <div>
+                          <div className="text-xs sm:text-sm font-semibold text-emerald-200">
+                            Model Confidence
+                          </div>
+                          <div className="text-xs text-emerald-300/70">
+                            Prediction Accuracy
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-3xl sm:text-4xl font-bold text-emerald-400">
-                    {Math.round((result.result.confidence || 0) * 100)}%
-                  </div>
-                  <div className="mt-2 w-full bg-slate-700 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-1000 ease-out"
-                      style={{
-                        width: `${(result.result.confidence || 0) * 100}%`,
-                      }}
-                    ></div>
+
+                    <div className="text-center sm:text-left">
+                      <div className="text-3xl sm:text-4xl lg:text-5xl font-black text-emerald-400 mb-2 sm:mb-3">
+                        {Math.round((result.result.confidence || 0) * 100)}%
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="w-full bg-slate-700/50 rounded-full h-2 sm:h-3 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-1000 ease-out shadow-lg"
+                          style={{
+                            width: `${(result.result.confidence || 0) * 100}%`,
+                          }}
+                        ></div>
+                      </div>
+                      <div className="flex justify-between text-xs text-emerald-300/70">
+                        <span>0%</span>
+                        <span className="font-medium hidden sm:inline">
+                          High Confidence
+                        </span>
+                        <span className="font-medium sm:hidden">High</span>
+                        <span>100%</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Raw Prediction */}
-                <div className="bg-slate-800/80 backdrop-blur-sm rounded-lg p-4 sm:p-6 border border-slate-700/50">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-2xl">🔬</span>
-                    <div className="text-sm font-medium text-slate-400">
-                      Raw Model Output
+                {/* Enhanced Raw Prediction - Mobile Responsive */}
+                <div className="bg-gradient-to-br from-blue-800/30 to-blue-900/30 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-blue-600/30 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent"></div>
+
+                  <div className="relative z-10">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="p-2 rounded-lg bg-blue-500/20 border border-blue-400/30 flex-shrink-0">
+                          <span className="text-lg sm:text-2xl">🔬</span>
+                        </div>
+                        <div>
+                          <div className="text-xs sm:text-sm font-semibold text-blue-200">
+                            Raw Model Output
+                          </div>
+                          <div className="text-xs text-blue-300/70">
+                            Neural Network Value
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-xl sm:text-2xl font-bold text-blue-400">
-                    {result.result.raw_prediction?.toFixed?.(4) ||
-                      result.result.raw_prediction ||
-                      "N/A"}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1">
-                    × {result.result.model_info?.scaling_factor || 1} ={" "}
-                    {result.result.age} years
+
+                    <div className="text-center sm:text-left">
+                      <div className="text-xl sm:text-2xl lg:text-3xl font-black text-blue-400 mb-2">
+                        {result.result.raw_prediction?.toFixed?.(4) ||
+                          result.result.raw_prediction ||
+                          "N/A"}
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-900/30 rounded-lg p-2 sm:p-3 border border-blue-700/30">
+                      <div className="text-xs text-blue-300/80 space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span>Scaling Factor:</span>
+                          <span className="font-mono text-xs sm:text-sm">
+                            ×{result.result.model_info?.scaling_factor || 1}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span>Final Age:</span>
+                          <span className="font-mono text-blue-200 text-xs sm:text-sm">
+                            {result.result.age} years
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 {result.result.gender && (
-                  <div className="bg-slate-800/80 backdrop-blur-sm rounded-lg p-4 sm:p-6 border border-slate-700/50 sm:col-span-2">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-2xl">
-                        {result.result.gender === "male" ? "👨" : "👩"}
-                      </span>
-                      <div className="text-sm font-medium text-slate-400">
-                        Gender
+                  <div className="bg-gradient-to-br from-purple-800/30 to-purple-900/30 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-purple-600/30 lg:col-span-2 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent"></div>
+
+                    <div className="relative z-10">
+                      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-4">
+                        <div className="p-2 sm:p-3 rounded-xl bg-purple-500/20 border border-purple-400/30 flex-shrink-0">
+                          <span className="text-2xl sm:text-3xl">
+                            {result.result.gender === "male" ? "👨" : "👩"}
+                          </span>
+                        </div>
+                        <div className="flex-1 text-center sm:text-left">
+                          <div className="text-xs sm:text-sm font-medium text-purple-200 mb-1">
+                            Detected Gender
+                          </div>
+                          <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-white capitalize">
+                            {result.result.gender === "male"
+                              ? "Male"
+                              : "Female"}
+                          </div>
+                          <div className="text-xs sm:text-sm text-purple-300/70 mt-1">
+                            Based on facial feature analysis
+                          </div>
+                        </div>
+                        <div className="hidden lg:block">
+                          <div className="w-12 h-12 lg:w-16 lg:h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-400/30 flex items-center justify-center">
+                            <span className="text-lg lg:text-2xl">
+                              {result.result.gender === "male" ? "♂" : "♀"}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-xl sm:text-2xl font-semibold text-white capitalize">
-                      {result.result.gender === "male" ? "Male" : "Female"}
                     </div>
                   </div>
                 )}
@@ -602,7 +760,7 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
                   <p className="text-red-300 text-sm sm:text-base">{error}</p>
                   <button
                     onClick={() => setError(null)}
-                    className="mt-3 px-3 py-1 bg-red-800/50 hover:bg-red-700/50 text-red-200 rounded text-sm transition-colors"
+                    className="mt-3 px-3 py-1 bg-red-800/50 hover:bg-red-700/50 text-red-200 rounded text-sm transition-colors cursor-pointer"
                   >
                     Close
                   </button>
