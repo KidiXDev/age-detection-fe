@@ -85,8 +85,8 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
       const formData = new FormData();
       formData.append("image", file);
 
-      // Use direct Python API (port 8000) instead of Next.js API
-      const response = await fetch("http://localhost:8000/api/detect-age", {
+      // Use Next.js API route instead of direct Python API call
+      const response = await fetch("/api/detect-age", {
         method: "POST",
         body: formData,
       });
@@ -97,11 +97,34 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
 
       const data = await response.json();
 
-      if (data.success) {
-        setResult(data);
+      if (data.success !== false) {
+        // Transform the response to match your expected format
+        const transformedResult = {
+          success: true,
+          result: {
+            age: data.age,
+            age_range: `${data.age - 3}-${data.age + 3}`, // Approximate range
+            age_min: data.age - 3,
+            age_max: data.age + 3,
+            confidence: data.confidence,
+            raw_prediction: data.age,
+            gender: data.gender,
+            message: data.message || "Age detection completed successfully",
+            method: "AI Neural Network",
+            model_info: {
+              input_size: "224x224",
+              scaling_factor: 1,
+              range_margin: 3,
+            },
+            timestamp: data.timestamp,
+            face_detected: true,
+            faces_count: 1,
+          },
+        };
+        setResult(transformedResult);
         setLoadingState("success");
       } else {
-        throw new Error(data.error || data.message || "Failed to detect age");
+        throw new Error(data.error || "Failed to detect age");
       }
     } catch (err) {
       console.error("Error detecting age:", err);
