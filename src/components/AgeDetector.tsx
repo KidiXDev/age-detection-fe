@@ -38,6 +38,7 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -64,6 +65,93 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
     }
 
     return { valid: true };
+  }, []);
+
+  // Image preprocessing utilities
+  const preprocessImage = useCallback((file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const img = document.createElement("img");
+
+      img.onload = () => {
+        // Calculate optimal dimensions (target 512x512 for better quality)
+        const maxSize = 512;
+        let { width, height } = img;
+
+        if (width > height) {
+          if (width > maxSize) {
+            height = (height * maxSize) / width;
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = (width * maxSize) / height;
+            height = maxSize;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        if (ctx) {
+          // Enable image smoothing for better quality
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+
+          // Draw the image
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Apply image enhancements
+          const imageData = ctx.getImageData(0, 0, width, height);
+          const data = imageData.data;
+
+          // Enhance contrast and brightness
+          const contrast = 1.1; // Slight contrast boost
+          const brightness = 5; // Slight brightness boost
+
+          for (let i = 0; i < data.length; i += 4) {
+            // Apply contrast and brightness to RGB channels
+            data[i] = Math.min(
+              255,
+              Math.max(0, (data[i] - 128) * contrast + 128 + brightness)
+            ); // Red
+            data[i + 1] = Math.min(
+              255,
+              Math.max(0, (data[i + 1] - 128) * contrast + 128 + brightness)
+            ); // Green
+            data[i + 2] = Math.min(
+              255,
+              Math.max(0, (data[i + 2] - 128) * contrast + 128 + brightness)
+            ); // Blue
+          }
+
+          ctx.putImageData(imageData, 0, 0);
+
+          // Convert to high-quality JPEG
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                const enhancedFile = new File([blob], file.name, {
+                  type: "image/jpeg",
+                  lastModified: Date.now(),
+                });
+                resolve(enhancedFile);
+              } else {
+                resolve(file);
+              }
+            },
+            "image/jpeg",
+            0.92 // High quality JPEG compression
+          );
+        } else {
+          resolve(file);
+        }
+      };
+
+      img.onerror = () => resolve(file);
+      img.src = URL.createObjectURL(file);
+    });
   }, []);
 
   // Response transformer utility
@@ -173,18 +261,35 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
       // Clear previous results
       setError(null);
       setResult(null);
+      setIsProcessing(true);
 
-      // Create preview
-      const reader = new FileReader();
-      reader.onload = (e: ProgressEvent<FileReader>): void => {
-        setSelectedImage(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        // Preprocess image for better quality
+        const enhancedFile = await preprocessImage(file);
 
-      // Detect age
-      await detectAge(file);
+        // Create preview
+        const reader = new FileReader();
+        reader.onload = (e: ProgressEvent<FileReader>): void => {
+          setSelectedImage(e.target?.result as string);
+        };
+        reader.readAsDataURL(enhancedFile);
+
+        // Detect age with enhanced image
+        await detectAge(enhancedFile);
+      } catch (error) {
+        console.error("Error processing image:", error);
+        // Fallback to original file if preprocessing fails
+        const reader = new FileReader();
+        reader.onload = (e: ProgressEvent<FileReader>): void => {
+          setSelectedImage(e.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+        await detectAge(file);
+      } finally {
+        setIsProcessing(false);
+      }
     },
-    [validateFile, detectAge]
+    [validateFile, detectAge, preprocessImage]
   );
 
   // Drag and drop handlers
@@ -368,25 +473,110 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
     }
   }, [drawFaceOutline]);
 
-  // Capture photo from camera
-  const capturePhoto = () => {
+  // Enhanced capture photo function with preprocessing
+  const capturePhoto = useCallback(() => {
     if (!videoRef.current) return;
+
     const video = videoRef.current;
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
-    if (ctx) {
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => {
+
+    if (!ctx) return;
+
+    // Set higher resolution for better quality
+    const targetWidth = 640;
+    const targetHeight = 480;
+
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+
+    // Enable high-quality rendering
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+
+    // Draw the video frame (flip horizontally for natural selfie view)
+    ctx.save();
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, -targetWidth, 0, targetWidth, targetHeight);
+    ctx.restore();
+
+    // Apply image enhancements
+    const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+    const data = imageData.data;
+
+    // Auto-adjust brightness and contrast based on image statistics
+    let totalBrightness = 0;
+    let pixelCount = 0;
+
+    // Calculate average brightness
+    for (let i = 0; i < data.length; i += 4) {
+      const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+      totalBrightness += brightness;
+      pixelCount++;
+    }
+
+    const avgBrightness = totalBrightness / pixelCount;
+
+    // Dynamic adjustment based on lighting conditions
+    let brightnessAdjust = 0;
+    let contrastAdjust = 1.0;
+
+    if (avgBrightness < 100) {
+      // Dark image - boost brightness and contrast
+      brightnessAdjust = 20;
+      contrastAdjust = 1.2;
+    } else if (avgBrightness > 180) {
+      // Bright image - reduce brightness slightly
+      brightnessAdjust = -10;
+      contrastAdjust = 1.1;
+    } else {
+      // Normal lighting - mild enhancement
+      brightnessAdjust = 5;
+      contrastAdjust = 1.05;
+    }
+
+    // Apply enhancements
+    for (let i = 0; i < data.length; i += 4) {
+      // Apply contrast and brightness
+      data[i] = Math.min(
+        255,
+        Math.max(0, (data[i] - 128) * contrastAdjust + 128 + brightnessAdjust)
+      );
+      data[i + 1] = Math.min(
+        255,
+        Math.max(
+          0,
+          (data[i + 1] - 128) * contrastAdjust + 128 + brightnessAdjust
+        )
+      );
+      data[i + 2] = Math.min(
+        255,
+        Math.max(
+          0,
+          (data[i + 2] - 128) * contrastAdjust + 128 + brightnessAdjust
+        )
+      );
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+
+    // Convert to high-quality file
+    canvas.toBlob(
+      (blob) => {
         if (blob) {
-          const file = new File([blob], "captured.jpg", { type: "image/jpeg" });
+          const file = new File([blob], "enhanced_capture.jpg", {
+            type: "image/jpeg",
+            lastModified: Date.now(),
+          });
           handleFileSelect(file);
         }
-      }, "image/jpeg");
-    }
+      },
+      "image/jpeg",
+      0.95 // Very high quality
+    );
+
     stopCamera();
-  };
+  }, [handleFileSelect]);
 
   // Reset function
   const resetDetector = () => {
@@ -394,6 +584,7 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
     setResult(null);
     setError(null);
     setLoadingState("idle");
+    setIsProcessing(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -460,7 +651,7 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
               <div>
                 <h3 className="text-xl sm:text-2xl font-semibold text-white mb-3">
                   {isDragging ? (
-                    <span className="text-slate-200 flex items-center gap-2">
+                    <span className="text-slate-200 flex items-center justify-center gap-2">
                       Drop your photo here!{" "}
                       <FiArrowDown className="text-slate-300" />
                     </span>
@@ -469,19 +660,25 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
                   )}
                 </h3>
                 <p className="text-slate-300 text-sm sm:text-base mb-4">
-                  Drag and drop an image, click to select a file, or
+                  <span className="block sm:inline">
+                    Drag and drop an image, click to select a file, or
+                  </span>
+                  <br className="hidden sm:block" />
                 </p>
-                <button
-                  type="button"
-                  className="mt-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors text-sm cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startCamera();
-                  }}
-                  disabled={loadingState === "loading"}
-                >
-                  Use Camera
-                </button>
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    className="mt-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors text-sm cursor-pointer flex items-center gap-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startCamera();
+                    }}
+                    disabled={loadingState === "loading"}
+                  >
+                    <FiCamera className="text-base" />
+                    Use Camera
+                  </button>
+                </div>
                 <div className="flex flex-wrap justify-center gap-2 text-xs sm:text-sm mt-4">
                   <span className="bg-slate-800 text-slate-300 px-3 py-1 rounded border border-slate-700">
                     JPG
@@ -573,12 +770,14 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
                     height={400}
                     className="w-full h-auto max-h-96 object-cover rounded-lg shadow-lg"
                   />
-                  {loadingState === "loading" && (
+                  {(loadingState === "loading" || isProcessing) && (
                     <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm rounded-lg flex items-center justify-center shadow-lg">
                       <div className="text-center">
                         <LoadingSpinner />
                         <p className="mt-4 text-slate-300 text-sm font-medium">
-                          Analyzing photo...
+                          {isProcessing
+                            ? "Enhancing image quality..."
+                            : "Analyzing photo..."}
                         </p>
                       </div>
                     </div>
