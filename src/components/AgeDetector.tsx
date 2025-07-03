@@ -515,7 +515,7 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
                 style={{
                   aspectRatio: "4/3",
                   maxHeight: 400,
-                  transform: "scaleX(1)",
+                  transform: "scaleX(-1)",
                 }}
               />
               {/* Face Detection Overlay Canvas */}
