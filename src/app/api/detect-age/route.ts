@@ -131,18 +131,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-export async function GET() {
-  return NextResponse.json(
-    {
-      message: "Age Detection API",
-      version: "1.0.0",
-      methods: ["POST"],
-      maxFileSize: "10MB",
-      supportedFormats: API_CONFIG.ALLOWED_TYPES,
-      pythonApiUrl: API_CONFIG.PYTHON_API_URL,
-      environment: process.env.NODE_ENV,
-    },
-    { status: 200 }
-  );
-}
