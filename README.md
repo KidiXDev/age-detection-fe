@@ -20,8 +20,8 @@ A web app to detect age from photos using AI. Built with Next.js 15, TypeScript,
 1. **Clone & install**
 
    ```bash
-   git clone <repository-url>
-   cd age-detector
+   git clone https://github.com/KidiXDev/age-detection-fe.git
+   cd age-detection-fe
    npm install
    ```
 
