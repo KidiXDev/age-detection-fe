@@ -14,7 +14,6 @@ import {
   FiUser,
   FiTarget,
   FiCheckCircle,
-  FiAlertCircle,
   FiRefreshCw,
   FiX,
   FiInfo,
@@ -22,10 +21,10 @@ import {
   FiBarChart,
   FiCpu,
   FiArrowDown,
-  FiSettings,
 } from "react-icons/fi";
-import { HiOutlineLightBulb } from "react-icons/hi";
-import { IoMaleOutline, IoFemaleOutline } from "react-icons/io5";
+import TipsSection from "./TipsSection";
+import TechnicalDetails from "./TechnicalDetails";
+import ErrorDisplay from "./ErrorDisplay";
 
 interface AgeDetectorProps {
   className?: string;
@@ -119,7 +118,7 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
 
   // Detect age function
   const detectAge = useCallback(
-    async (file: File) => {
+    async (file: File): Promise<void> => {
       setLoadingState("loading");
       setError(null);
 
@@ -177,7 +176,7 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
 
       // Create preview
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = (e: ProgressEvent<FileReader>): void => {
         setSelectedImage(e.target?.result as string);
       };
       reader.readAsDataURL(file);
@@ -597,7 +596,6 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
               </button>
             </div>
           </div>
-
           {/* Results */}
           {result && result.result && (
             <div className="bg-slate-900/60 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-slate-700/50 shadow-xl slide-in-left">
@@ -627,7 +625,6 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                {/* Enhanced Age Display */}
                 <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-sm rounded-xl p-4 sm:p-6 lg:p-8 border border-slate-700/50 lg:col-span-2 relative overflow-hidden">
                   {/* Background decoration */}
                   <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5"></div>
@@ -815,47 +812,6 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
                     </div>
                   </div>
                 </div>
-
-                {/* Gender */}
-                {result.result.gender && (
-                  <div className="bg-gradient-to-br from-purple-800/30 to-purple-900/30 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-purple-600/30 lg:col-span-2 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent"></div>
-
-                    <div className="relative z-10">
-                      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-4">
-                        <div className="p-2 sm:p-3 rounded-xl bg-purple-500/20 border border-purple-400/30 flex-shrink-0">
-                          {result.result.gender === "male" ? (
-                            <IoMaleOutline className="text-2xl sm:text-3xl text-purple-300" />
-                          ) : (
-                            <IoFemaleOutline className="text-2xl sm:text-3xl text-purple-300" />
-                          )}
-                        </div>
-                        <div className="flex-1 text-center sm:text-left">
-                          <div className="text-xs sm:text-sm font-medium text-purple-200 mb-1">
-                            Detected Gender
-                          </div>
-                          <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-white capitalize">
-                            {result.result.gender === "male"
-                              ? "Male"
-                              : "Female"}
-                          </div>
-                          <div className="text-xs sm:text-sm text-purple-300/70 mt-1">
-                            Based on facial feature analysis
-                          </div>
-                        </div>
-                        <div className="hidden lg:block">
-                          <div className="w-12 h-12 lg:w-16 lg:h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-400/30 flex items-center justify-center">
-                            {result.result.gender === "male" ? (
-                              <IoMaleOutline className="text-lg lg:text-2xl text-purple-300" />
-                            ) : (
-                              <IoFemaleOutline className="text-lg lg:text-2xl text-purple-300" />
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {result.result.message && (
@@ -869,86 +825,20 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
                 </div>
               )}
 
-              {/* Technical Details */}
-              <div className="mt-6 p-4 bg-slate-800/40 backdrop-blur-sm rounded-lg border border-slate-700/30">
-                <h4 className="text-sm font-medium text-slate-400 mb-3 flex items-center gap-2">
-                  <FiSettings className="text-slate-400" />
-                  Technical Details
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs text-slate-400">
-                  <div>
-                    <div className="font-medium text-slate-300">Timestamp</div>
-                    <div>
-                      {new Date(result.result.timestamp).toLocaleTimeString(
-                        "id-ID"
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-medium text-slate-300">
-                      Range Margin
-                    </div>
-                    <div>±{result.result.model_info?.range_margin} years</div>
-                  </div>
-                  <div>
-                    <div className="font-medium text-slate-300">
-                      Model Input
-                    </div>
-                    <div>{result.result.model_info?.input_size}</div>
-                  </div>
-                </div>
-              </div>
+              <TechnicalDetails
+                timestamp={result.result.timestamp}
+                modelInfo={result.result.model_info}
+              />
             </div>
           )}
 
           {/* Error Display */}
-          {error && (
-            <div className="bg-red-900/30 backdrop-blur-sm border border-red-600/50 rounded-lg p-4 sm:p-6 scale-in">
-              <div className="flex items-start gap-3">
-                <FiAlertCircle className="text-2xl text-red-400" />
-                <div>
-                  <h4 className="font-semibold text-red-200 mb-2">
-                    An Error Occurred
-                  </h4>
-                  <p className="text-red-300 text-sm sm:text-base">{error}</p>
-                  <button
-                    onClick={() => setError(null)}
-                    className="mt-3 px-3 py-1 bg-red-800/50 hover:bg-red-700/50 text-red-200 rounded text-sm transition-colors cursor-pointer"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <ErrorDisplay error={error} setError={setError} />
         </div>
       )}
 
-      {/* Tips */}
-      <div className="mt-12 bg-slate-900/40 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50">
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-          <HiOutlineLightBulb className="text-xl text-yellow-400" />
-          Tips for Best Results
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-slate-300">
-          <div className="flex items-start gap-2">
-            <FiCheckCircle className="text-emerald-400 mt-0.5" />
-            <span>Use a clear and sharp photo</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <FiCheckCircle className="text-emerald-400 mt-0.5" />
-            <span>Make sure the face is clearly visible</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <FiCheckCircle className="text-emerald-400 mt-0.5" />
-            <span>Avoid photos that are too dark</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <FiCheckCircle className="text-emerald-400 mt-0.5" />
-            <span>Frontal photos give the best results</span>
-          </div>
-        </div>
-      </div>
+      {/* Tips Section */}
+      <TipsSection />
     </div>
   );
 }
