@@ -44,6 +44,7 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
   const streamRef = useRef<MediaStream | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   // Validate file
   const validateFile = useCallback((file: File): FileValidationResult => {
@@ -346,12 +347,49 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
     setCameraError(null);
     setShowCamera(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      // Request camera with square aspect ratio for 1:1 display
+      const constraints = {
+        video: {
+          facingMode: "user", // Front camera for selfies
+          width: { ideal: 640, max: 1280 },
+          height: { ideal: 640, max: 1280 },
+          aspectRatio: { ideal: 1.0 }, // Square aspect ratio
+        },
+      };
+
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch {
+        // Fallback to basic video if constraints fail
+        console.warn(
+          "Failed to get camera with constraints, falling back to basic video"
+        );
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
         // Start face detection overlay after video starts playing
         videoRef.current.addEventListener("loadedmetadata", startFaceDetection);
+
+        // Set up resize observer to handle video container resizing
+        if (resizeObserverRef.current) {
+          resizeObserverRef.current.disconnect();
+        }
+
+        resizeObserverRef.current = new ResizeObserver(() => {
+          // Trigger canvas resize when video container size changes
+          if (canvasRef.current && videoRef.current) {
+            const video = videoRef.current;
+            const canvas = canvasRef.current;
+            canvas.width = video.clientWidth;
+            canvas.height = video.clientHeight;
+          }
+        });
+
+        resizeObserverRef.current.observe(videoRef.current);
       }
       streamRef.current = stream;
     } catch {
@@ -373,6 +411,10 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
     }
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect();
+      resizeObserverRef.current = null;
+    }
   };
 
   // Draw clean white face outline on canvas
@@ -384,9 +426,13 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Sync canvas size with video
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Get the container dimensions (square aspect ratio)
+    const containerWidth = video.clientWidth;
+    const containerHeight = video.clientHeight;
+
+    // Set canvas size to match the displayed video size
+    canvas.width = containerWidth;
+    canvas.height = containerHeight;
 
     // Clear previous drawings
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -459,17 +505,22 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
   // Start face detection overlay
   const startFaceDetection = useCallback(() => {
     if (videoRef.current && canvasRef.current) {
-      // Wait for video to be ready
+      // Wait for video to be ready and properly sized
       const video = videoRef.current;
       const startDrawing = () => {
-        if (video.readyState >= 2) {
-          // HAVE_CURRENT_DATA
+        if (
+          video.readyState >= 2 &&
+          video.clientWidth > 0 &&
+          video.clientHeight > 0
+        ) {
+          // HAVE_CURRENT_DATA and video is properly sized
           drawFaceOutline();
         } else {
           setTimeout(startDrawing, 100);
         }
       };
-      startDrawing();
+      // Add a small delay to ensure the video element has been properly sized by CSS
+      setTimeout(startDrawing, 200);
     }
   }, [drawFaceOutline]);
 
@@ -483,25 +534,49 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
 
     if (!ctx) return;
 
-    // Set higher resolution for better quality
-    const targetWidth = 640;
-    const targetHeight = 480;
+    // Use actual video dimensions but ensure square output
+    const videoWidth = video.videoWidth || video.clientWidth;
+    const videoHeight = video.videoHeight || video.clientHeight;
 
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
+    // Calculate square dimensions (use the smaller dimension for perfect square)
+    const squareSize = Math.min(videoWidth, videoHeight);
+    const maxSize = 1024; // Maximum resolution
+    let targetSize = squareSize;
+
+    // Scale down if too large while maintaining square aspect ratio
+    if (squareSize > maxSize) {
+      targetSize = maxSize;
+    }
+
+    canvas.width = targetSize;
+    canvas.height = targetSize;
 
     // Enable high-quality rendering
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
 
-    // Draw the video frame (flip horizontally for natural selfie view)
+    // Calculate crop coordinates to center the square crop
+    const cropX = (videoWidth - squareSize) / 2;
+    const cropY = (videoHeight - squareSize) / 2;
+
+    // Draw the video frame as a square (flip horizontally for natural selfie view)
     ctx.save();
     ctx.scale(-1, 1);
-    ctx.drawImage(video, -targetWidth, 0, targetWidth, targetHeight);
+    ctx.drawImage(
+      video,
+      cropX,
+      cropY,
+      squareSize,
+      squareSize, // Source crop (square from center)
+      -targetSize,
+      0,
+      targetSize,
+      targetSize // Destination (flipped square)
+    );
     ctx.restore();
 
     // Apply image enhancements
-    const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+    const imageData = ctx.getImageData(0, 0, targetSize, targetSize);
     const data = imageData.data;
 
     // Auto-adjust brightness and contrast based on image statistics
@@ -703,23 +778,22 @@ export default function AgeDetector({ className = "" }: AgeDetectorProps) {
       {showCamera && (
         <div className="flex flex-col items-center justify-center space-y-6 slide-in-right">
           <div className="relative bg-slate-900/60 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-slate-700/50 shadow-xl w-full max-w-md">
-            <div className="relative">
+            <div className="relative rounded-lg bg-black overflow-hidden aspect-square">
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
-                className="w-full h-auto rounded-lg bg-black"
+                className="w-full h-full object-cover rounded-lg bg-black"
                 style={{
-                  aspectRatio: "4/3",
-                  maxHeight: 400,
                   transform: "scaleX(-1)",
+                  display: "block",
                 }}
               />
               {/* Face Detection Overlay Canvas */}
               <canvas
                 ref={canvasRef}
                 className="absolute top-0 left-0 w-full h-full rounded-lg pointer-events-none"
-                style={{ aspectRatio: "4/3", maxHeight: 400 }}
+                style={{ transform: "scaleX(-1)" }}
               />
 
               {/* Face Detection Indicator */}
